@@ -136,6 +136,7 @@ const ApprovedTags = {
   tspan: true,
   use: false,
   // svg ends
+  iframe: true,
 };
 
 const Keywords = {
@@ -844,8 +845,8 @@ class VmStack {
           if (!options?.callee) {
             throw new Error(
               "Cannot dereference keyword '" +
-                keyword +
-                "' in non-call expression"
+              keyword +
+              "' in non-call expression"
             );
           }
           return {
@@ -1362,10 +1363,10 @@ class VmStack {
             deepCopy(
               e instanceof Error
                 ? {
-                    name: e?.name,
-                    message: e?.message,
-                    toString: () => e.toString(),
-                  }
+                  name: e?.name,
+                  message: e?.message,
+                  toString: () => e.toString(),
+                }
                 : e
             )
           );
