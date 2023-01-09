@@ -28,7 +28,7 @@ const MainnetDomains = {
 
 const EnableWeb4FastRpc = false;
 
-export const IsMainnet = window.location.hostname in MainnetDomains;
+export const IsMainnet = true;
 const TestnetContract = "v1.social08.testnet";
 const TestNearConfig = {
   networkId: "testnet",
@@ -298,15 +298,15 @@ async function _initNear() {
   const transformBlockId = (blockId) =>
     blockId === "optimistic" || blockId === "final"
       ? {
-          finality: blockId,
-          blockId: undefined,
-        }
+        finality: blockId,
+        blockId: undefined,
+      }
       : blockId !== undefined && blockId !== null
-      ? {
+        ? {
           finality: undefined,
           blockId: parseInt(blockId),
         }
-      : {
+        : {
           finality: "optimistic",
           blockId: undefined,
         };
