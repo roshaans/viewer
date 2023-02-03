@@ -12,13 +12,17 @@ import { Nav, OverlayTrigger, Tooltip } from "react-bootstrap";
 import RenameModal from "../components/Editor/RenameModal";
 import OpenModal from "../components/Editor/OpenModal";
 import { useAccountId } from "../data/account";
-
+import { CommitIndexerButton } from '../components/CommitIndexerCode'
+import { Near } from "near-api-js";
 const StorageDomain = {
   page: "editor",
 };
-
+const IndexerStorageDomain = {
+  editor: "indexer",
+};
 const StorageType = {
   Code: "code",
+  IndexerCode: "indexerCode",
   Files: "files",
 };
 
@@ -32,18 +36,34 @@ const WidgetPropsKey = LsKey + "widgetProps:";
 
 const DefaultEditorCode = "return <div>Hello World</div>;";
 
+const DefaultIndexerCode = ``;
+
 const Tab = {
   Editor: "Editor",
   Props: "Props",
   Metadata: "Metadata",
   Widget: "Widget",
+  Indexer: "Indexer",
 };
 
 const Layout = {
   Tabs: "Tabs",
   Split: "Split",
 };
+// const ComponentWithGraphQLData = () => {
+//   const { loading, error, data } = useQuery(gql`
+//   {
+//     user(id: 1) {
+//       id
+//       name
+//     }
+//   }`)
 
+//   if (loading) return <p>Loading...</p>
+//   if (error) return <p>Error!</p>
+//   console.log(data.myData, "mydata")
+//   return <p>{data.myData}</p>
+// }
 export default function EditorPage(props) {
   const { widgetSrc } = useParams();
   const history = useHistory();
@@ -51,6 +71,7 @@ export default function EditorPage(props) {
 
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState(undefined);
+  const [indexerCode, setIndexerCode] = useState(undefined);
   const [path, setPath] = useState(undefined);
   const [files, setFiles] = useState(undefined);
   const [lastPath, setLastPath] = useState(undefined);
@@ -106,6 +127,24 @@ export default function EditorPage(props) {
     [cache, setCode]
   );
 
+  const updateIndexerCode = useCallback(
+    (path, indexerCode) => {
+      cache.localStorageSet(
+        IndexerStorageDomain,
+        {
+          path,
+          type: StorageType.IndexerCode,
+        },
+        {
+          indexerCode,
+          time: Date.now(),
+        }
+      );
+      setIndexerCode(indexerCode);
+    },
+    [cache, setIndexerCode]
+  );
+
   useEffect(() => {
     ls.set(WidgetPropsKey, widgetProps);
     try {
@@ -157,7 +196,7 @@ export default function EditorPage(props) {
   }, [files, lastPath, cache]);
 
   const openFile = useCallback(
-    (path, code) => {
+    (path, code, indexerCode) => {
       setPath(path);
       addToFiles(path);
       setMetadata(undefined);
@@ -178,8 +217,24 @@ export default function EditorPage(props) {
             setLoading(false);
           });
       }
+      if (indexerCode !== undefined) {
+        updateIndexerCode(path, indexerCode);
+      } else {
+        setLoading(true);
+        cache
+          .asyncLocalStorageGet(IndexerStorageDomain, {
+            path,
+            type: StorageType.IndexerCode,
+          })
+          .then(({ code }) => {
+            updateIndexerCode(path, code);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
     },
-    [updateCode, addToFiles]
+    [updateCode, updateIndexerCode, addToFiles]
   );
 
   const toPath = useCallback((type, nameOrPath) => {
@@ -208,10 +263,15 @@ export default function EditorPage(props) {
           undefined,
           c
         );
+        const indexerCode = cache.cachedViewCall(near, "registry.queryapi.near", "read_indexer_function", {
+          name: `${accountId}/${nameOrPath}`,
+        })
         if (code) {
           const name = widgetSrc.split("/").slice(2).join("/");
-          openFile(toPath(Filetype.Widget, widgetSrc), code);
+          openFile(toPath(Filetype.Widget, widgetSrc), code, indexerCode);
         }
+
+
       };
 
       c();
@@ -237,7 +297,7 @@ export default function EditorPage(props) {
   const createFile = useCallback(
     (type) => {
       const path = generateNewName(type);
-      openFile(path, DefaultEditorCode);
+      openFile(path, DefaultEditorCode, DefaultIndexerCode);
     },
     [generateNewName, openFile]
   );
@@ -294,24 +354,24 @@ export default function EditorPage(props) {
       if (files.length === 0) {
         createFile(Filetype.Widget);
       } else {
-        openFile(lastPath, undefined);
+        openFile(lastPath, undefined, undefined);
       }
     }
   }, [near, createFile, lastPath, files, path, widgetSrc, openFile, loadFile]);
 
   const reformat = useCallback(
-    (path, code) => {
+    (path, code, updateCodeFunc) => {
       try {
         const formattedCode = prettier.format(code, {
           parser: "babel",
           plugins: [parserBabel],
         });
-        updateCode(path, formattedCode);
+        updateCodeFunc(path, formattedCode);
       } catch (e) {
         console.log(e);
       }
     },
-    [updateCode]
+    []
   );
 
   const reformatProps = useCallback(
@@ -359,6 +419,21 @@ export default function EditorPage(props) {
     </CommitButton>
   );
 
+  const commitIndexerCodeButton = (
+    <CommitIndexerButton
+      className="btn btn-primary"
+      disabled={!widgetName}
+      near={near}
+      data={{
+        widgetName: {
+          "": indexerCode,
+        },
+      }}
+    >
+      Save Indexer Code
+    </CommitIndexerButton>
+  );
+
   const widgetPath = `${accountId}/${path?.type}/${path?.name}`;
   const jpath = JSON.stringify(path);
 
@@ -376,7 +451,7 @@ export default function EditorPage(props) {
         onOpen={(newName) => loadFile(newName)}
         onNew={(newName) =>
           newName
-            ? openFile(toPath(Filetype.Widget, newName), DefaultEditorCode)
+            ? openFile(toPath(Filetype.Widget, newName), DefaultEditorCode, DefaultIndexerCode)
             : createFile(Filetype.Widget)
         }
         onHide={() => setShowOpenModal(false)}
@@ -394,11 +469,10 @@ export default function EditorPage(props) {
                 <Nav.Link className="text-decoration-none" eventKey={jp}>
                   {p.name}
                   <button
-                    className={`btn btn-sm border-0 py-0 px-1 ms-1 rounded-circle ${
-                      jp === jpath
-                        ? "btn-outline-light"
-                        : "btn-outline-secondary"
-                    }`}
+                    className={`btn btn-sm border-0 py-0 px-1 ms-1 rounded-circle ${jp === jpath
+                      ? "btn-outline-light"
+                      : "btn-outline-secondary"
+                      }`}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -524,9 +598,8 @@ export default function EditorPage(props) {
                 {NearConfig.widgets.widgetMetadataEditor && (
                   <li className="nav-item">
                     <button
-                      className={`nav-link ${
-                        tab === Tab.Metadata ? "active" : ""
-                      }`}
+                      className={`nav-link ${tab === Tab.Metadata ? "active" : ""
+                        }`}
                       aria-current="page"
                       onClick={() => setTab(Tab.Metadata)}
                     >
@@ -534,12 +607,23 @@ export default function EditorPage(props) {
                     </button>
                   </li>
                 )}
+                {NearConfig.widgets.widgetMetadataEditor && (
+                  <li className="nav-item">
+                    <button
+                      className={`nav-link ${tab === Tab.Indexer ? "active" : ""
+                        }`}
+                      aria-current="page"
+                      onClick={() => setTab(Tab.Indexer)}
+                    >
+                      Data Indexing
+                    </button>
+                  </li>
+                )}
                 {layout === Layout.Tabs && (
                   <li className="nav-item">
                     <button
-                      className={`nav-link ${
-                        tab === Tab.Widget ? "active" : ""
-                      }`}
+                      className={`nav-link ${tab === Tab.Widget ? "active" : ""
+                        }`}
                       aria-current="page"
                       onClick={() => {
                         setRenderCode(code);
@@ -560,7 +644,7 @@ export default function EditorPage(props) {
                     defaultLanguage="javascript"
                     onChange={(code) => updateCode(path, code)}
                     wrapperProps={{
-                      onBlur: () => reformat(path, code),
+                      onBlur: () => reformat(path, code, updateCode),
                     }}
                   />
                 </div>
@@ -578,9 +662,8 @@ export default function EditorPage(props) {
                   </button>
                   {!path?.unnamed && commitButton}
                   <button
-                    className={`btn ${
-                      path?.unnamed ? "btn-primary" : "btn-secondary"
-                    }`}
+                    className={`btn ${path?.unnamed ? "btn-primary" : "btn-secondary"
+                      }`}
                     onClick={() => {
                       setShowRenameModal(true);
                     }}
@@ -616,12 +699,11 @@ export default function EditorPage(props) {
                 )}
               </div>
               <div
-                className={`${
-                  tab === Tab.Metadata &&
+                className={`${tab === Tab.Metadata &&
                   NearConfig.widgets.widgetMetadataEditor
-                    ? ""
-                    : "visually-hidden"
-                }`}
+                  ? ""
+                  : "visually-hidden"
+                  }`}
               >
                 <div className="mb-3">
                   <Widget
@@ -640,12 +722,11 @@ export default function EditorPage(props) {
               </div>
             </div>
             <div
-              className={`${
-                tab === Tab.Widget ||
+              className={`${tab === Tab.Widget ||
                 (layout === Layout.Split && tab !== Tab.Metadata)
-                  ? layoutClass
-                  : "visually-hidden"
-              }`}
+                ? layoutClass
+                : "visually-hidden"
+                }`}
             >
               <div className="container">
                 <div className="row">
@@ -664,9 +745,8 @@ export default function EditorPage(props) {
               </div>
             </div>
             <div
-              className={`${
-                tab === Tab.Metadata ? layoutClass : "visually-hidden"
-              }`}
+              className={`${tab === Tab.Metadata ? layoutClass : "visually-hidden"
+                }`}
             >
               <div className="container">
                 <div className="row">
@@ -682,6 +762,43 @@ export default function EditorPage(props) {
                   </div>
                 </div>
               </div>
+            </div>
+            <div className={`${tab === Tab.Indexer ? "" : "visually-hidden"}`}>
+              <div className="form-control mb-3" style={{ height: "70vh" }}>
+                <Editor
+                  value={indexerCode}
+                  path={widgetPath}
+                  defaultLanguage="javascript"
+                  onChange={(indexerCode) => updateIndexerCode(path, indexerCode)}
+                  wrapperProps={{
+                    onBlur: () => reformat(path, indexerCode, updateIndexerCode),
+                  }}
+                />
+              </div>
+              <div className="mb-3 d-flex gap-2 flex-wrap">
+                <button
+                  className="btn btn-success"
+                  onClick={() => {
+                    setRenderIndexerCode(indexerCode);
+                    if (layout === Layout.Tabs) {
+                      setTab(Tab.Widget);
+                    }
+                  }}
+                >
+                  Start Indexer
+                </button>
+                {NearConfig.widgets.IndexerCodeCommitButton && (
+                  <Widget
+                    key={`indexer-commit-${jpath}`}
+                    src={NearConfig.widgets.IndexerCodeCommitButton}
+                    props={useMemo(
+                      () => ({ indexer_name: `${accountId}/${widgetName}`, indexer_code: indexerCode }),
+                      [accountId, widgetName, indexerCode]
+                    )}
+                  />
+                )}
+              </div>
+
             </div>
           </div>
         </div>

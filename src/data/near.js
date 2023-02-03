@@ -11,7 +11,6 @@ import { setupHereWallet } from "@near-wallet-selector/here-wallet";
 import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
 import { setupNeth } from "@near-wallet-selector/neth";
 
-export const TGas = Big(10).pow(12);
 export const MaxGasPerTransaction = TGas.mul(250);
 export const StorageCostPerByte = Big(10).pow(19);
 
@@ -28,7 +27,7 @@ const MainnetDomains = {
 
 const EnableWeb4FastRpc = false;
 
-export const IsMainnet = true;
+export const IsMainnet = false;
 const TestnetContract = "v1.social08.testnet";
 const TestNearConfig = {
   networkId: "testnet",
@@ -70,6 +69,7 @@ export const MainNearConfig = {
     notificationButton: "mob.near/widget/NotificationButton",
     profilePage: "mob.near/widget/ProfilePage",
     editorComponentSearch: "mob.near/widget/Editor.ComponentSearch",
+    IndexerCodeCommitButton: "roshaan.near/widget/CommitIndexerCodeButton"
   },
   apiUrl: "https://api.near.social",
   finalSynchronizationDelayMs: 3000,
