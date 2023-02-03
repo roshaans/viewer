@@ -48,6 +48,7 @@ const TestNearConfig = {
     profileImage: "eugenethedream/widget/ProfileImage",
     profilePage: "eugenethedream/widget/Profile",
     notificationButton: "eugenethedream/widget/NotificationButton",
+    IndexerCodeCommitButton: "roshaan.testnet/widget/CommitIndexerCodeButton"
   },
   apiUrl: null,
   finalSynchronizationDelayMs: 3000,

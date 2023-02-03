@@ -263,7 +263,7 @@ export default function EditorPage(props) {
           undefined,
           c
         );
-        const indexerCode = cache.cachedViewCall(near, "registry.queryapi.near", "read_indexer_function", {
+        const indexerCode = cache.cachedViewCall(near, "registry.queryapi.testnet", "read_indexer_function", {
           name: `${accountId}/${nameOrPath}`,
         })
         if (code) {
