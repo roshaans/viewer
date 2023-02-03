@@ -11,6 +11,8 @@ import { setupHereWallet } from "@near-wallet-selector/here-wallet";
 import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
 import { setupNeth } from "@near-wallet-selector/neth";
 
+
+export const TGas = Big(10).pow(12);
 export const MaxGasPerTransaction = TGas.mul(250);
 export const StorageCostPerByte = Big(10).pow(19);
 
